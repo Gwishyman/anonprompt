@@ -1,72 +1,82 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore,
-  doc,
-  getDoc,
-  updateDoc,
-  increment,
-  collection,
-  addDoc,
-  serverTimestamp,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/10.3.0/firebase-firestore.js";
+  getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, addDoc, onSnapshot, increment
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const app = initializeApp({
+const firebaseConfig = {
   apiKey: "AIzaSyDz7JexQoEnbx16lVUMbN5RzyOGKEbetWI",
   authDomain: "anonprompt-4f636.firebaseapp.com",
   projectId: "anonprompt-4f636",
-});
+  storageBucket: "anonprompt-4f636.appspot.com",
+  messagingSenderId: "907184769134",
+  appId: "1:907184769134:web:905a3ea89f1090442afe7f"
+};
 
+const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const urlParams = new URLSearchParams(window.location.search);
-const postId = urlParams.get("post");
-const promptRef = doc(db, "prompts", postId);
-const promptContainer = document.getElementById("promptContainer");
-const likeBtn = document.getElementById("likeBtn");
 
-async function loadPrompt() {
-  const snap = await getDoc(promptRef);
-  if (!snap.exists()) {
-    promptContainer.textContent = "Post not found.";
+const postId = new URLSearchParams(location.search).get("post");
+if (!postId) location.href = "404.html";
+
+const postRef = doc(db, "prompts", postId);
+
+getDoc(postRef).then(docSnap => {
+  if (!docSnap.exists()) {
+    location.href = "404.html";
     return;
   }
-  const data = snap.data();
-  promptContainer.innerHTML = `<p>${data.text}</p><small>${data.timestamp?.toDate().toLocaleString()}</small>`;
-  likeBtn.innerText = `👍 ${data.upvotes || 0}`;
+  const data = docSnap.data();
+  renderPost(data);
+}).catch(() => location.href = "404.html");
+
+function renderPost(data) {
+  const postBox = document.getElementById("postBox");
+  const liked = localStorage.getItem("liked_" + postId);
+  postBox.innerHTML = `
+    <p>${data.text}</p>
+    <div class="interaction">
+      <span>
+        <span class="material-icons" id="likeBtn" style="color:${liked ? 'red' : 'white'}">favorite</span>
+        <span id="likeCount">${data.likes || 0}</span>
+      </span>
+      <span>${new Date(data.timestamp?.seconds * 1000).toLocaleString()}</span>
+    </div>
+  `;
+  document.getElementById("likeBtn").onclick = likePost;
 }
 
-likeBtn.addEventListener("click", async () => {
-  await updateDoc(promptRef, {
-    upvotes: increment(1)
-  });
-  const updated = await getDoc(promptRef);
-  likeBtn.innerText = `👍 ${updated.data().upvotes || 0}`;
-});
+function likePost() {
+  const likedKey = "liked_" + postId;
+  if (localStorage.getItem(likedKey)) return;
+  updateDoc(postRef, { likes: increment(1) });
+  localStorage.setItem(likedKey, "true");
+  const countEl = document.getElementById("likeCount");
+  countEl.textContent = parseInt(countEl.textContent) + 1;
+  document.getElementById("likeBtn").style.color = "red";
+}
 
-async function loadComments() {
-  const q = collection(db, `prompts/${postId}/comments`);
-  const snap = await getDocs(q);
+// Load comments
+const commentsRef = collection(db, "prompts", postId, "comments");
+onSnapshot(commentsRef, snapshot => {
   const container = document.getElementById("comments");
   container.innerHTML = "";
-  snap.forEach(doc => {
-    const d = doc.data();
+  snapshot.forEach(doc => {
+    const comment = doc.data();
     const div = document.createElement("div");
-    div.textContent = `${d.text} — ${d.timestamp?.toDate().toLocaleString()}`;
+    div.className = "comment";
+    div.textContent = comment.text;
     container.appendChild(div);
   });
-}
+});
 
+// Post a comment
 window.submitComment = async () => {
   const input = document.getElementById("commentInput");
   const text = input.value.trim();
   if (!text) return;
-  await addDoc(collection(db, `prompts/${postId}/comments`), {
+  await addDoc(commentsRef, {
     text,
-    timestamp: serverTimestamp()
+    timestamp: new Date()
   });
   input.value = "";
-  loadComments();
 };
-
-loadPrompt();
-loadComments();
