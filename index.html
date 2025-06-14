@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AnonPrompt</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #121212;
+      color: white;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 10px;
+    }
+    textarea {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      background: #222;
+      color: white;
+      border: 1px solid #444;
+      border-radius: 5px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px;
+      width: 100%;
+      background: #1e88e5;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .prompt {
+      background: #1c1c1c;
+      margin: 15px 0;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .prompt .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #aaa;
+    }
+    .material-icons {
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    #alertBanner {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 10px;
+      text-align: center;
+      z-index: 1000;
+      font-weight: bold;
+      background: white;
+      color: black;
+    }
+    @media (prefers-color-scheme: dark) {
+      #alertBanner {
+        background: white;
+        color: black;
+      }
+    }
+    @media (prefers-color-scheme: light) {
+      #alertBanner {
+        background: black;
+        color: white;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="alertBanner"></div>
+  <div class="container">
+    <h1>AnonPrompt</h1>
+    <textarea id="promptInput" rows="3" placeholder="What's on your mind?"></textarea>
+    <button onclick="postPrompt()">Post Anonymously</button>
+    <div id="prompts"></div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
