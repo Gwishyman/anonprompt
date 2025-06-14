@@ -1,14 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {
-  getFirestore,
-  doc,
-  collection,
-  onSnapshot,
-  updateDoc,
-  addDoc,
-  increment,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDz7JexQoEnbx16lVUMbN5RzyOGKEbetWI",
@@ -23,133 +14,117 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const alertBanner = document.getElementById("alertBanner");
-const postBox = document.getElementById("postBox");
-const likeBtn = document.getElementById("likeBtn");
-const reportBtn = document.getElementById("reportBtn");
-const likeCount = document.getElementById("likeCount");
-const timestampEl = document.getElementById("timestamp");
-const commentsContainer = document.getElementById("comments");
-const commentForm = document.getElementById("commentForm");
-const commentInput = document.getElementById("commentInput");
+const postContainer = document.getElementById("postContainer");
+const reportPopup = document.getElementById("reportPopup");
+const reportYesBtn = document.getElementById("reportYesBtn");
+const reportNoBtn = document.getElementById("reportNoBtn");
 
-const urlParams = new URLSearchParams(window.location.search);
-const postId = urlParams.get("post");
+let currentPostId = null;
 
-if (!postId) {
-  window.location.href = "404.html";
+// Base64 encoded webhook URL (your provided one)
+const WEBHOOK_BASE64 = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTM4MzQzNjkyMzAzMjMwOTc2MC9CZWllbjEtOVg3X0szZVlGYUl0QWZSYTFwb3NSQnRDWGZQYW9GWDBnQlFfVDMzdTgtb1BIXzU1aXJfS0s5OTI5NzBwVQ==";
+
+// Decode base64 webhook URL
+function decodeWebhookUrl(base64) {
+  try {
+    return atob(base64);
+  } catch {
+    return null;
+  }
 }
 
-// Base64 decode function
-function b64DecodeUnicode(str) {
-  // atob to decode base64 then decodeURIComponent to handle UTF-8 characters
-  return decodeURIComponent(
-    Array.prototype.map
-      .call(atob(str), c =>
-        "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)
-      )
-      .join("")
-  );
-}
-
-const encryptedWebhookBase64 = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTM4MzQzNjkyMzAzMjMwOTc2MC9CZWllbjEtOVg3X0szZVlGYUl0QWZSYTFwb3NSQnRDWGZQYW9GWDBnQlFfVDMzdTgtb1BIXzU1aXJfS0s5OTI5NzBwVQ==";
-const webhookUrl = b64DecodeUnicode(encryptedWebhookBase64);
-
-const postRef = doc(db, "prompts", postId);
-const commentsRef = collection(db, "prompts", postId, "comments");
-
-function showBanner(msg, type = "info") {
-  alertBanner.textContent = msg;
-  alertBanner.style.backgroundColor = type === "error" ? "#d32f2f" : "#4caf50";
+function showAlert(message, type = "success") {
+  alertBanner.textContent = message;
+  alertBanner.className = type === "error" ? "error" : "success";
   alertBanner.style.display = "block";
   setTimeout(() => {
     alertBanner.style.display = "none";
-  }, 3500);
+  }, 3000);
 }
 
-function renderPost(data) {
-  postBox.textContent = data.text || "(No content)";
-  likeCount.textContent = data.likes || 0;
-  timestampEl.textContent = data.timestamp
-    ? new Date(data.timestamp.seconds * 1000).toLocaleString()
-    : "";
-
-  // Update like button color if already liked
-  if (localStorage.getItem("liked_" + postId)) {
-    likeBtn.classList.add("liked");
-  } else {
-    likeBtn.classList.remove("liked");
-  }
-}
-
-async function likePost() {
-  const likedKey = "liked_" + postId;
-  if (localStorage.getItem(likedKey)) {
-    showBanner("You already liked this post.", "error");
-    return;
-  }
-  try {
-    await updateDoc(postRef, { likes: increment(1) });
-    localStorage.setItem(likedKey, "true");
-    likeBtn.classList.add("liked");
-    showBanner("Liked post!");
-  } catch {
-    showBanner("Failed to like post.", "error");
-  }
-}
-
-async function reportPost() {
-  const reason = prompt("Please enter reason to report this post:");
-  if (!reason || !reason.trim()) return;
-
-  try {
-    await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        postId,
-        reason: reason.trim(),
-        timestamp: new Date().toISOString()
-      })
-    });
-    showBanner("Report sent. Thank you.");
-  } catch {
-    showBanner("Failed to send report.", "error");
-  }
-}
-
-function renderComments(snapshot) {
-  commentsContainer.innerHTML = "";
-  snapshot.forEach(doc => {
-    const comment = doc.data();
-    const div = document.createElement("div");
-    div.className = "comment";
-    div.textContent = comment.text || "";
-    commentsContainer.appendChild(div);
+function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, (match) => {
+    const escapeMap = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    };
+    return escapeMap[match];
   });
 }
 
-commentForm.addEventListener("submit", async e => {
-  e.preventDefault();
-  const text = commentInput.value.trim();
-  if (!text) return;
-  try {
-    await addDoc(commentsRef, { text, timestamp: new Date() });
-    commentInput.value = "";
-    showBanner("Comment added.");
-  } catch {
-    showBanner("Failed to add comment.", "error");
-  }
-});
+function getPostIdFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get("post");
+}
 
-likeBtn.addEventListener("click", likePost);
-reportBtn.addEventListener("click", reportPost);
-
-onSnapshot(postRef, docSnap => {
-  if (!docSnap.exists()) {
+async function loadPost(postId) {
+  const postDoc = await getDoc(doc(db, "prompts", postId));
+  if (!postDoc.exists()) {
     window.location.href = "404.html";
     return;
   }
-  renderPost(docSnap.data());
+  const postData = postDoc.data();
+
+  postContainer.innerHTML = `
+    <div class="prompt-content">
+      <p>${escapeHtml(postData.text)}</p>
+      <button id="reportBtn" class="icon-button" title="Report Post" aria-label="Report Post">
+        <span class="material-icons">flag</span>
+      </button>
+    </div>
+  `;
+
+  document.getElementById("reportBtn").addEventListener("click", () => {
+    reportPopup.style.display = "flex";
+  });
+
+  currentPostId = postId;
+}
+
+async function sendReport() {
+  if (!currentPostId) return;
+
+  const webhookUrl = decodeWebhookUrl(WEBHOOK_BASE64);
+  if (!webhookUrl) {
+    showAlert("Failed to decode webhook URL.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: `Report received for post ID: ${currentPostId}` }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Webhook returned status ${res.status}`);
+    }
+
+    showAlert("Report sent successfully.", "success");
+  } catch (error) {
+    showAlert("Failed to send report.", "error");
+    console.error(error);
+  }
+}
+
+reportYesBtn.addEventListener("click", () => {
+  sendReport();
+  reportPopup.style.display = "none";
 });
 
-onSnapshot(commentsRef, renderComments);
+reportNoBtn.addEventListener("click", () => {
+  reportPopup.style.display = "none";
+});
+
+window.addEventListener("load", () => {
+  const postId = getPostIdFromURL();
+  if (!postId) {
+    window.location.href = "404.html";
+    return;
+  }
+  loadPost(postId);
+});
