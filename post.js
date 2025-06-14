@@ -97,7 +97,7 @@ async function sendReport() {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: `Report received for post ID: ${currentPostId}` }),
+      body: JSON.stringify({ content: `Report received for post: https://github.com/Gwishyman/anonprompt/post.html?post=${currentPostId}` }),
     });
 
     if (!res.ok) {
