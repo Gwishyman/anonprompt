@@ -1,6 +1,12 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, addDoc, onSnapshot, increment
+  getFirestore,
+  doc,
+  collection,
+  onSnapshot,
+  updateDoc,
+  addDoc,
+  increment
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -15,19 +21,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const postId = new URLSearchParams(location.search).get("post");
-if (!postId) location.href = "404.html";
+const urlParams = new URLSearchParams(window.location.search);
+const postId = urlParams.get("post");
+
+if (!postId) {
+  window.location.href = "404.html";
+}
 
 const postRef = doc(db, "prompts", postId);
-
-getDoc(postRef).then(docSnap => {
-  if (!docSnap.exists()) {
-    location.href = "404.html";
-    return;
-  }
-  const data = docSnap.data();
-  renderPost(data);
-}).catch(() => location.href = "404.html");
+const commentsRef = collection(db, "prompts", postId, "comments");
 
 function renderPost(data) {
   const postBox = document.getElementById("postBox");
@@ -36,7 +38,7 @@ function renderPost(data) {
     <p>${data.text}</p>
     <div class="interaction">
       <span>
-        <span class="material-icons" id="likeBtn" style="color:${liked ? 'red' : 'white'}">favorite</span>
+        <span class="material-icons" id="likeBtn" style="color:${liked ? "red" : "white"}; cursor:pointer;">favorite</span>
         <span id="likeCount">${data.likes || 0}</span>
       </span>
       <span>${new Date(data.timestamp?.seconds * 1000).toLocaleString()}</span>
@@ -50,17 +52,20 @@ function likePost() {
   if (localStorage.getItem(likedKey)) return;
   updateDoc(postRef, { likes: increment(1) });
   localStorage.setItem(likedKey, "true");
-  const countEl = document.getElementById("likeCount");
-  countEl.textContent = parseInt(countEl.textContent) + 1;
-  document.getElementById("likeBtn").style.color = "red";
 }
 
-// Load comments
-const commentsRef = collection(db, "prompts", postId, "comments");
-onSnapshot(commentsRef, snapshot => {
+onSnapshot(postRef, (docSnap) => {
+  if (!docSnap.exists()) {
+    window.location.href = "404.html";
+    return;
+  }
+  renderPost(docSnap.data());
+});
+
+onSnapshot(commentsRef, (snapshot) => {
   const container = document.getElementById("comments");
   container.innerHTML = "";
-  snapshot.forEach(doc => {
+  snapshot.forEach((doc) => {
     const comment = doc.data();
     const div = document.createElement("div");
     div.className = "comment";
@@ -69,7 +74,6 @@ onSnapshot(commentsRef, snapshot => {
   });
 });
 
-// Post a comment
 window.submitComment = async () => {
   const input = document.getElementById("commentInput");
   const text = input.value.trim();
