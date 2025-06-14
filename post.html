@@ -1,54 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AnonPrompt - Post</title>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-<style>
-  body {
-    margin: 0; font-family: sans-serif; background: #121212; color: white; display: flex; flex-direction: column; min-height: 100vh;
-  }
-  .container {
-    flex: 1; max-width: 600px; margin: auto; padding: 10px;
-  }
-  #alertBanner {
-    position: fixed; top: 0; left: 0; right: 0; padding: 12px; font-weight: bold; text-align: center; z-index: 9999;
-    display: none;
-  }
-  #alertBanner.success { background: #00aa00; color: #fff; }
-  #alertBanner.error { background: #aa0000; color: #fff; }
-  .prompt-content { background: #222; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-  button {
-    padding: 12px; border: none; border-radius: 5px; background: #1e88e5; color: white; width: 100%; font-size: 16px; cursor: pointer;
-  }
-  .icon-button {
-    background: transparent; border: none; cursor: pointer; color: white; font-size: 20px; margin-left: 10px;
-  }
-  #reportPopup {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75);
-    display: none; align-items: center; justify-content: center; z-index: 10000;
-  }
-  #reportPopup .popup-content {
-    background: #222; padding: 20px; border-radius: 10px; max-width: 320px; width: 90%; text-align: center;
-  }
-  #reportPopup button {
-    margin: 10px 5px 0; width: 45%; font-weight: bold;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Post - AnonPrompt</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #121212;
+      color: white;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 15px;
+    }
+    .prompt-content {
+      background: #1c1c1c;
+      padding: 20px;
+      border-radius: 10px;
+      position: relative;
+    }
+    .material-icons {
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    .icon-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+    #alertBanner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      padding: 12px;
+      font-weight: bold;
+      display: none;
+      z-index: 999;
+    }
+    .success { background: #4caf50; color: white; }
+    .error { background: #f44336; color: white; }
+
+    #comments {
+      margin-top: 20px;
+    }
+    .comment {
+      background: #222;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    textarea {
+      width: 100%;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      resize: vertical;
+    }
+    button {
+      background: #2196f3;
+      border: none;
+      padding: 10px;
+      color: white;
+      font-size: 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+    }
+    #reportPopup {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #reportPopupInner {
+      background: #1e1e1e;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    #reportPopup button {
+      width: 40%;
+      margin: 10px;
+      background: #f44336;
+    }
+    #reportPopup button.cancel {
+      background: #555;
+    }
+  </style>
 </head>
 <body>
   <div id="alertBanner"></div>
 
-  <div class="container" id="postContainer">
-    <!-- Post content will be loaded here -->
+  <div id="reportPopup">
+    <div id="reportPopupInner">
+      <p>Report this post?</p>
+      <button id="reportYesBtn">Yes</button>
+      <button id="reportNoBtn" class="cancel">No</button>
+    </div>
   </div>
 
-  <div id="reportPopup">
-    <div class="popup-content">
-      <p>Report this post?</p>
-      <button id="reportYesBtn" style="background:#d32f2f; color:#fff;">Yes</button>
-      <button id="reportNoBtn" style="background:#555; color:#fff;">No</button>
+  <div class="container">
+    <div id="postContainer"></div>
+
+    <div class="icon-row">
+      <span id="likeBtn" class="material-icons">favorite_border</span>
+      <span id="likeCount">0</span>
+      <span id="commentIcon" class="material-icons">comment</span>
+    </div>
+
+    <div id="commentsSection">
+      <textarea id="commentInput" rows="3" placeholder="Leave a comment..."></textarea>
+      <button id="sendComment">Send</button>
+      <div id="comments"></div>
     </div>
   </div>
 
