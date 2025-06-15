@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, doc, getDoc, collection, query, orderBy, onSnapshot,
-  addDoc, serverTimestamp, setDoc, deleteDoc, getDocs
+  getFirestore, doc, getDoc, collection, addDoc, onSnapshot, setDoc, getDocs, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -16,157 +15,118 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const urlParams = new URLSearchParams(window.location.search);
-const postId = urlParams.get("post");
-
-if (!postId) {
-  window.location.href = "404.html";
+const alertBox = document.getElementById("alert");
+function showAlert(msg) {
+  alertBox.innerText = msg;
+  alertBox.style.display = "block";
+  setTimeout(() => alertBox.style.display = "none", 3000);
 }
+
+const params = new URLSearchParams(location.search);
+const postId = params.get("post");
+
+if (!postId) location.href = "404.html";
 
 const postRef = doc(db, "prompts", postId);
-const contentEl = document.getElementById("postContent");
-const likeBtn = document.getElementById("likeBtn");
-const likeCount = document.getElementById("likeCount");
 const commentInput = document.getElementById("commentInput");
-const commentBtn = document.getElementById("commentBtn");
-const commentsContainer = document.getElementById("comments");
-const reportBtn = document.getElementById("reportBtn");
+const commentList = document.getElementById("commentList");
+const postTextEl = document.getElementById("postText");
+const likeBtn = document.getElementById("likeBtn");
+const likeCountEl = document.getElementById("likeCount");
 
-// Show error and redirect if post is invalid
-getDoc(postRef).then(docSnap => {
-  if (!docSnap.exists()) {
-    window.location.href = "404.html";
-    return;
+let liked = false;
+let likeCount = 0;
+const likeKey = `like_${postId}`;
+
+async function loadPost() {
+  const snap = await getDoc(postRef);
+  if (!snap.exists()) return location.href = "404.html";
+
+  const data = snap.data();
+  postTextEl.innerText = data.text || "[No content]";
+}
+
+async function toggleLike() {
+  liked = !liked;
+  likeBtn.innerText = liked ? "favorite" : "favorite_border";
+  likeCount += liked ? 1 : -1;
+  likeCount = Math.max(likeCount, 0);
+  likeCountEl.innerText = likeCount;
+  localStorage.setItem(likeKey, liked ? "1" : "0");
+
+  const votesRef = collection(postRef, "votes");
+  const ip = localStorage.getItem("user_ip") || Math.random().toString(36).slice(2);
+  localStorage.setItem("user_ip", ip);
+  const voteDoc = doc(votesRef, ip);
+
+  if (liked) {
+    await setDoc(voteDoc, { liked: true });
+  } else {
+    await deleteDoc(voteDoc);
   }
-  const data = docSnap.data();
-  contentEl.textContent = data.text || "(No content)";
-}).catch(() => {
-  window.location.href = "404.html";
-});
+}
 
-// Load comments (newest first)
-const commentsRef = collection(db, "prompts", postId, "comments");
-const q = query(commentsRef, orderBy("timestamp", "desc"));
-onSnapshot(q, snapshot => {
-  commentsContainer.innerHTML = "";
-  snapshot.forEach(doc => {
-    const data = doc.data();
-    const div = document.createElement("div");
-    div.className = "comment";
-    div.style.marginBottom = "10px";
-    div.style.background = "#1c1c1c";
-    div.style.padding = "10px";
-    div.style.borderRadius = "5px";
-    div.textContent = data.text;
-    commentsContainer.appendChild(div);
-  });
-});
+async function loadLikes() {
+  const votesRef = collection(postRef, "votes");
+  const votesSnap = await getDocs(votesRef);
+  likeCount = votesSnap.size;
+  likeCountEl.innerText = likeCount;
 
-// Submit comment
-commentBtn.onclick = async () => {
+  liked = localStorage.getItem(likeKey) === "1";
+  likeBtn.innerText = liked ? "favorite" : "favorite_border";
+}
+
+async function submitComment() {
   const text = commentInput.value.trim();
-  if (!text) return;
+  if (!text) return showAlert("Comment cannot be empty");
   commentInput.value = "";
   try {
-    await addDoc(commentsRef, {
+    await addDoc(collection(postRef, "comments"), {
       text,
-      timestamp: serverTimestamp()
+      created: Date.now()
     });
-  } catch (err) {
-    showAlert("Failed to comment", true);
+  } catch (e) {
+    showAlert("Failed to comment.");
   }
-};
+}
 
-// Likes (per-IP via localStorage)
-const voteRef = doc(db, "prompts", postId, "votes", localStorage.getItem("anonprompt_vote_id") || generateId());
-localStorage.setItem("anonprompt_vote_id", voteRef.id);
-
-function updateLikeStatus() {
-  getDocs(collection(db, "prompts", postId, "votes")).then(snapshot => {
-    likeCount.textContent = snapshot.size;
-  });
-  getDoc(voteRef).then(doc => {
-    if (doc.exists()) {
-      likeBtn.style.color = "red";
-    } else {
-      likeBtn.style.color = "white";
-    }
+function loadComments() {
+  const commentsRef = collection(postRef, "comments");
+  onSnapshot(commentsRef, snap => {
+    const comments = [];
+    snap.forEach(doc => comments.push(doc.data()));
+    comments.sort((a, b) => b.created - a.created);
+    commentList.innerHTML = comments.map(c => `
+      <div class="comment">${c.text}</div>
+    `).join("");
   });
 }
 
-likeBtn.onclick = async () => {
-  const docSnap = await getDoc(voteRef);
-  if (docSnap.exists()) {
-    await deleteDoc(voteRef);
-  } else {
-    await setDoc(voteRef, { liked: true });
-  }
-  updateLikeStatus();
-};
-
-updateLikeStatus();
-
-// Report system
-reportBtn.onclick = () => {
-  if (document.getElementById("reportPopup")) return;
-
-  const lastReport = JSON.parse(localStorage.getItem("lastReport") || "{}");
-  if (lastReport[postId] && Date.now() - lastReport[postId] < 5 * 60 * 1000) {
-    showAlert("You can only report this post once every 5 minutes.", true);
-    return;
+async function openReport() {
+  const last = localStorage.getItem(`report_${postId}`);
+  const now = Date.now();
+  if (last && now - parseInt(last) < 5 * 60 * 1000) {
+    return showAlert("You already reported this post recently.");
   }
 
-  const popup = document.createElement("div");
-  popup.id = "reportPopup";
-  popup.style.position = "fixed";
-  popup.style.top = "0"; popup.style.left = "0";
-  popup.style.width = "100%"; popup.style.height = "100%";
-  popup.style.background = "rgba(0,0,0,0.8)";
-  popup.style.display = "flex"; popup.style.alignItems = "center";
-  popup.style.justifyContent = "center"; popup.style.zIndex = "1000";
+  const confirm = window.confirm("Report this post?");
+  if (!confirm) return;
 
-  popup.innerHTML = `
-    <div style="background:#1e1e1e;padding:20px;border-radius:10px;text-align:center;width:90%;max-width:300px">
-      <h3>Report this post?</h3>
-      <p>This action will notify the moderators.</p>
-      <button id="yesReport" style="margin:5px;background:#f44336;color:white;padding:10px;border:none;border-radius:5px">Yes</button>
-      <button id="noReport" style="margin:5px;background:#444;color:white;padding:10px;border:none;border-radius:5px">No</button>
-    </div>
-  `;
-  document.body.appendChild(popup);
+  const webhook = atob("aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTM4MzQzNjkyMzAzMjMwOTc2MC9CZWllbjEtOVg3X0szZVlGYUl0QWZSYTFwb3NSQnRDWGZQYW9GWDBnQlFfVDMzdTgtb1BIXzU1aXJfS0s5OTI5NzBwVQ==");
 
-  document.getElementById("yesReport").onclick = async () => {
-    popup.remove();
-    localStorage.setItem("lastReport", JSON.stringify({ ...lastReport, [postId]: Date.now() }));
+  fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      content: `@everyone Report received for post: https://gwishyman.github.io/anonprompt/post.html?post=${postId}`
+    })
+  });
 
-    const webhook = atob("aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTM4MzQzNjkyMzAzMjMwOTc2MC9CZWllbjEtOVg3X0szZVlGYUl0QWZSYTFwb3NSQnRDWGZQYW9GWDBnQlFfVDMzdTgtb1BIXzU1aXJfS0s5OTI5NzBwVQ==");
-    await fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: `@everyone Report received for post: https://gwishyman.github.io/anonprompt/post.html?post=${postId}`
-      })
-    });
-
-    showAlert("Report sent successfully.");
-  };
-
-  document.getElementById("noReport").onclick = () => popup.remove();
-};
-
-// Generate random ID for voting
-function generateId() {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  localStorage.setItem(`report_${postId}`, now.toString());
+  showAlert("Reported.");
 }
 
-// Show banner alert
-function showAlert(msg, isError = false) {
-  const banner = document.getElementById("alertBanner");
-  banner.textContent = msg;
-  banner.style.background = isError ? "#f44336" : "#4caf50";
-  banner.style.color = "white";
-  banner.style.display = "block";
-  setTimeout(() => {
-    banner.style.display = "none";
-  }, 4000);
-    }
+// Init
+loadPost();
+loadLikes();
+loadComments();
