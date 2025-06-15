@@ -1,51 +1,120 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"; import { getFirestore, doc, getDoc, updateDoc, increment, setDoc, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, collection, addDoc,
+  onSnapshot, updateDoc, increment, setDoc, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const firebaseConfig = { apiKey: "AIzaSyDz7JexQoEnbx16lVUMbN5RzyOGKEbetWI", authDomain: "anonprompt-4f636.firebaseapp.com", projectId: "anonprompt-4f636", storageBucket: "anonprompt-4f636.appspot.com", messagingSenderId: "907184769134", appId: "1:907184769134:web:905a3ea89f1090442afe7f" };
+const firebaseConfig = {
+  apiKey: "AIzaSyDz7JexQoEnbx16lVUMbN5RzyOGKEbetWI",
+  authDomain: "anonprompt-4f636.firebaseapp.com",
+  projectId: "anonprompt-4f636",
+  storageBucket: "anonprompt-4f636.appspot.com",
+  messagingSenderId: "907184769134",
+  appId: "1:907184769134:web:905a3ea89f1090442afe7f"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-const app = initializeApp(firebaseConfig); const db = getFirestore(app);
+const postId = new URLSearchParams(location.search).get("post");
+const postRef = doc(db, "prompts", postId);
+const postContainer = document.getElementById("postContainer");
+const likeBtn = document.getElementById("likeBtn");
+const likeCount = document.getElementById("likeCount");
+const commentsContainer = document.getElementById("commentsContainer");
+const alertBanner = document.getElementById("alertBanner");
 
-const alertBanner = document.getElementById("alertBanner"); const postContainer = document.getElementById("postContainer"); const commentInput = document.getElementById("commentInput"); const sendComment = document.getElementById("sendComment"); const comments = document.getElementById("comments"); const likeBtn = document.getElementById("likeBtn"); const likeCount = document.getElementById("likeCount"); const reportPopup = document.getElementById("reportPopup"); const reportYesBtn = document.getElementById("reportYesBtn"); const reportNoBtn = document.getElementById("reportNoBtn");
+if (!postId) location.href = "404.html";
 
-let postId = null;
+function showBanner(msg, color = "#f44336") {
+  alertBanner.innerText = msg;
+  alertBanner.style.background = color;
+  alertBanner.style.display = "block";
+  setTimeout(() => alertBanner.style.display = "none", 3000);
+}
 
-const webhookBase64 = "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTM4MzQzNjkyMzAzMjMwOTc2MC9CZWllbjEtOVg3X0szZVlGYUl0QWZSYTFwb3NSQnRDWGZQYW9GWDBnQlFfVDMzdTgtb1BIXzU1aXJfS0s5OTI5NzBwVQ=="; const webhookUrl = atob(webhookBase64);
+// Load post
+getDoc(postRef).then(snap => {
+  if (!snap.exists()) return location.href = "404.html";
+  postContainer.textContent = snap.data().text || "[No content]";
+}).catch(() => location.href = "404.html");
 
-function showAlert(msg, type = "success") { alertBanner.textContent = msg; alertBanner.className = type === "error" ? "error" : "success"; alertBanner.style.display = "block"; setTimeout(() => alertBanner.style.display = "none", 3000); }
+// Likes
+const ip = await (await fetch("https://api.ipify.org?format=json")).json().then(res => res.ip).catch(() => "unknown");
+const voteRef = doc(db, "prompts", postId, "votes", ip);
+let liked = false;
 
-function escapeHTML(text) { return text.replace(/[&<>"]'/g, m => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[m])); }
+getDoc(voteRef).then(snap => {
+  liked = snap.exists();
+  likeBtn.innerText = liked ? "favorite" : "favorite_border";
+});
 
-function getPostIdFromURL() { const urlParams = new URLSearchParams(window.location.search); return urlParams.get("post"); }
+onSnapshot(collection(db, "prompts", postId, "votes"), snap => {
+  likeCount.textContent = snap.size;
+});
 
-async function loadPost() { const docRef = doc(db, "prompts", postId); const snap = await getDoc(docRef); if (!snap.exists()) { window.location.href = "404.html"; return; }
+likeBtn.onclick = async () => {
+  if (!liked) {
+    await setDoc(voteRef, { liked: true });
+    liked = true;
+    likeBtn.innerText = "favorite";
+  } else {
+    await setDoc(voteRef, {}, { merge: true });
+    await updateDoc(voteRef, { liked: false });
+    await voteRef.delete();
+    liked = false;
+    likeBtn.innerText = "favorite_border";
+  }
+};
 
-const data = snap.data(); likeCount.textContent = data.likes || 0;
+// Comments
+onSnapshot(collection(db, "prompts", postId, "comments"), snap => {
+  commentsContainer.innerHTML = "";
+  snap.forEach(doc => {
+    const div = document.createElement("div");
+    div.className = "comment";
+    div.textContent = doc.data().text;
+    commentsContainer.appendChild(div);
+  });
+});
 
-postContainer.innerHTML = <div class="prompt-content"> <p>${escapeHTML(data.text)}</p> <span id="reportBtn" class="material-icons" style="position:absolute;top:10px;right:10px;">flag</span> </div>;
+window.submitComment = async () => {
+  const text = document.getElementById("commentInput").value.trim();
+  if (!text) return showBanner("Comment cannot be empty");
+  try {
+    await addDoc(collection(db, "prompts", postId, "comments"), {
+      text,
+      timestamp: Date.now()
+    });
+    document.getElementById("commentInput").value = "";
+  } catch {
+    showBanner("Failed to comment");
+  }
+};
 
-document.getElementById("reportBtn").onclick = () => { reportPopup.style.display = "flex"; }; }
+// Report
+const reportBtn = document.getElementById("reportBtn");
+const reportedMap = new Map();
 
-async function loadComments() { comments.innerHTML = ""; const snap = await getDocs(collection(db, "prompts", postId, "comments")); snap.forEach(doc => { const c = doc.data(); const el = document.createElement("div"); el.className = "comment"; el.textContent = c.text; comments.appendChild(el); }); }
+reportBtn.onclick = () => {
+  if (reportedMap.get(postId) && Date.now() - reportedMap.get(postId) < 5 * 60 * 1000) {
+    return showBanner("Already reported this post recently");
+  }
 
-sendComment.onclick = async () => { const text = commentInput.value.trim(); if (!text) return showAlert("Comment is empty", "error");
+  const confirmBox = confirm("Report this post?");
+  if (!confirmBox) return;
 
-await addDoc(collection(db, "prompts", postId, "comments"), { text, time: Date.now() });
+  const webhook = atob("aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTM4MzQzNjkyMzAzMjMwOTc2MC9CZWllbjEtOVg3X0szZVlGYUl0QWZSYTFwb3NSQnRDWGZQYW9GWDBnQlFfVDMzdTgtb1BIXzU1aXJfS0s5OTI5NzBwVQ==");
 
-commentInput.value = ""; loadComments(); };
-
-likeBtn.onclick = async () => { const key = liked_${postId}; const liked = localStorage.getItem(key); const docRef = doc(db, "prompts", postId); await updateDoc(docRef, { likes: increment(liked ? -1 : 1) });
-
-if (liked) { localStorage.removeItem(key); likeBtn.textContent = "favorite_border"; likeCount.textContent = parseInt(likeCount.textContent) - 1; } else { localStorage.setItem(key, "1"); likeBtn.textContent = "favorite"; likeCount.textContent = parseInt(likeCount.textContent) + 1; } };
-
-reportYesBtn.onclick = async () => { const lastReportKey = report_${postId}; const lastReportTime = localStorage.getItem(lastReportKey); const now = Date.now();
-
-if (lastReportTime && now - parseInt(lastReportTime) < 5 * 60 * 1000) { showAlert("You already reported this post recently", "error"); reportPopup.style.display = "none"; return; }
-
-await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: @everyone Report received for post: https://github.com/Gwishyman/anonprompt/post.html?post=${postId} }) }); localStorage.setItem(lastReportKey, now.toString()); showAlert("Reported successfully."); reportPopup.style.display = "none"; };
-
-reportNoBtn.onclick = () => { reportPopup.style.display = "none"; };
-
-window.onload = async () => { postId = getPostIdFromURL(); if (!postId) { window.location.href = "404.html"; return; }
-
-await loadPost(); await loadComments();
-
-if (localStorage.getItem(liked_${postId})) { likeBtn.textContent = "favorite"; } };
+  fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      content: `@everyone Report received for post: https://gwishyman.github.io/anonprompt/post.html?post=${postId}`
+    })
+  }).then(() => {
+    showBanner("Reported successfully", "#4caf50");
+    reportedMap.set(postId, Date.now());
+  }).catch(() => {
+    showBanner("Failed to report");
+  });
+};
