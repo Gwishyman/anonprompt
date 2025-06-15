@@ -3,129 +3,108 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Post - AnonPrompt</title>
+  <title>AnonPrompt - Post</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
     body {
+      margin: 0;
       font-family: sans-serif;
       background: #121212;
       color: white;
-      margin: 0;
-      padding: 0;
     }
     .container {
       max-width: 600px;
-      margin: 30px auto;
-      padding: 15px;
+      margin: 60px auto;
+      padding: 10px;
     }
-    .prompt-content {
-      background: #1c1c1c;
-      padding: 20px;
-      border-radius: 10px;
-      position: relative;
-    }
-    .material-icons {
-      vertical-align: middle;
-      cursor: pointer;
-    }
-    .icon-row {
-      margin-top: 10px;
-      display: flex;
-      gap: 10px;
-    }
-    #alertBanner {
+    .top-bar {
       position: fixed;
       top: 0;
-      left: 0;
       width: 100%;
-      text-align: center;
-      padding: 12px;
-      font-weight: bold;
-      display: none;
-      z-index: 999;
+      height: 50px;
+      background: #1e1e1e;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0 10px;
+      z-index: 100;
     }
-    .success { background: #4caf50; color: white; }
-    .error { background: #f44336; color: white; }
-
-    #comments {
-      margin-top: 20px;
-    }
-    .comment {
-      background: #222;
-      padding: 10px;
-      border-radius: 5px;
-      margin-top: 10px;
-    }
-    textarea {
-      width: 100%;
-      background: #2a2a2a;
-      border: 1px solid #444;
+    .material-icons {
       color: white;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    .post-content {
+      background: #222;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 15px;
+    }
+    .likes {
+      display: flex;
+      align-items: center;
+    }
+    .likes .material-icons {
+      margin-right: 5px;
+    }
+    #commentInput {
+      width: 100%;
+      background: #1c1c1c;
+      border: none;
       padding: 10px;
+      color: white;
+      margin-top: 10px;
       border-radius: 5px;
       resize: vertical;
     }
     button {
-      background: #2196f3;
-      border: none;
-      padding: 10px;
+      background: #1e88e5;
       color: white;
-      font-size: 14px;
-      border-radius: 5px;
-      cursor: pointer;
+      padding: 10px;
+      margin-top: 10px;
+      border: none;
       width: 100%;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    .comment {
+      background: #1a1a1a;
+      padding: 10px;
+      border-radius: 5px;
       margin-top: 10px;
     }
-    #reportPopup {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
+    #alertBanner {
       display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-    #reportPopupInner {
-      background: #1e1e1e;
-      padding: 20px;
-      border-radius: 10px;
+      position: fixed;
+      top: 0;
+      width: 100%;
+      padding: 12px;
       text-align: center;
-    }
-    #reportPopup button {
-      width: 40%;
-      margin: 10px;
+      font-weight: bold;
       background: #f44336;
-    }
-    #reportPopup button.cancel {
-      background: #555;
+      color: white;
+      z-index: 1000;
     }
   </style>
 </head>
 <body>
   <div id="alertBanner"></div>
-
-  <div id="reportPopup">
-    <div id="reportPopupInner">
-      <p>Report this post?</p>
-      <button id="reportYesBtn">Yes</button>
-      <button id="reportNoBtn" class="cancel">No</button>
-    </div>
+  <div class="top-bar">
+    <span class="material-icons" onclick="window.location.href='index.html'">home</span>
+    <span class="material-icons" id="reportBtn">flag</span>
   </div>
-
   <div class="container">
-    <div id="postContainer"></div>
+    <div id="postContainer" class="post-content"></div>
 
-    <div class="icon-row">
-      <span id="likeBtn" class="material-icons">favorite_border</span>
+    <div class="likes">
+      <span class="material-icons" id="likeBtn">favorite_border</span>
       <span id="likeCount">0</span>
-      <span id="commentIcon" class="material-icons">comment</span>
     </div>
 
-    <div id="commentsSection">
-      <textarea id="commentInput" rows="3" placeholder="Leave a comment..."></textarea>
-      <button id="sendComment">Send</button>
-      <div id="comments"></div>
-    </div>
+    <textarea id="commentInput" rows="3" placeholder="Add a comment..."></textarea>
+    <button onclick="submitComment()">Post Comment</button>
+
+    <div id="commentsContainer"></div>
   </div>
 
   <script type="module" src="post.js"></script>
